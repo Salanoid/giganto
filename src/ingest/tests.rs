@@ -753,11 +753,13 @@ fn run_server(db_dir: TempDir) -> JoinHandle<()> {
     let packet_sources = Arc::new(RwLock::new(HashMap::new()));
     let sources = Arc::new(RwLock::new(HashMap::new()));
     let stream_direct_channel = Arc::new(RwLock::new(HashMap::new()));
+    let statistics_period = std::time::Duration::from_secs(1000);
     tokio::spawn(server().run(
         db,
         packet_sources,
         sources,
         stream_direct_channel,
+        statistics_period,
         Arc::new(Notify::new()),
     ))
 }

@@ -24,10 +24,11 @@ pub struct Settings {
     pub graphql_address: SocketAddr, // IP address & port to graphql
     pub log_dir: PathBuf,    //giganto's syslog path
     pub export_dir: PathBuf, //giganto's export file path
-
     // db options
     pub max_open_files: i32,
     pub max_mb_of_level_base: u64,
+    #[serde(with = "humantime_serde")]
+    pub statistics_period: Duration, // statistics generate period
 }
 
 impl Settings {
@@ -103,6 +104,8 @@ fn default_config_builder() -> ConfigBuilder<DefaultState> {
         .expect("default max open files")
         .set_default("max_mb_of_level_base", 512)
         .expect("default max mb of level base")
+        .set_default("statistics_period", "1m")
+        .expect("statistics period")
 }
 
 /// Deserializes a socket address.

@@ -1,14 +1,13 @@
 //! Raw event storage based on RocksDB.
 use crate::{
-    graphql::{network::NetworkFilter, RawEventFilter},
-    ingest::implement::EventFilter,
+    graphql::RawEventFilter,
+    ingest::{implement::EventFilter, AnalyzerStatistics, CollectorStatistics},
 };
-use anyhow::{Context, Result};
+use anyhow::{bail, Context, Result};
 use chrono::{DateTime, NaiveDateTime, Utc};
 use giganto_client::ingest::{
     log::{Log, Oplog},
     network::{Conn, DceRpc, Dns, Http, Kerberos, Ntlm, Rdp, Smtp, Ssh},
-    statistics::Statistics,
     timeseries::PeriodicTimeSeries,
     Packet,
 };
@@ -19,9 +18,10 @@ use rocksdb::{ColumnFamily, ColumnFamilyDescriptor, DBIteratorWithThreadMode, Op
 use serde::de::DeserializeOwned;
 use std::{cmp, marker::PhantomData, mem, path::Path, sync::Arc, time::Duration};
 use tokio::{select, sync::Notify, time};
-use tracing::error;
+use tracing::{error, info};
 
-const RAW_DATA_COLUMN_FAMILY_NAMES: [&str; 14] = [
+pub const STATISTICS_VALIAD_RECORD_COUNT: u32 = 14;
+const RAW_DATA_COLUMN_FAMILY_NAMES: [&str; 15] = [
     "conn",
     "dns",
     "log",
@@ -33,13 +33,15 @@ const RAW_DATA_COLUMN_FAMILY_NAMES: [&str; 14] = [
     "kerberos",
     "ssh",
     "dce rpc",
-    "statistics",
+    "collector statistics",
     "oplog",
     "packet",
+    "analyzer statistics",
 ];
 const META_DATA_COLUMN_FAMILY_NAMES: [&str; 1] = ["sources"];
 const TIMESTAMP_SIZE: usize = 8;
-
+const KEY_MIN: &[u8] = &[0];
+const KEY_MAX: &[u8] = &[255];
 #[cfg(debug_assertions)]
 pub struct CfProperties {
     pub estimate_live_data_size: u64,
@@ -250,12 +252,21 @@ impl Database {
         Ok(RawEventStore::new(&self.db, cf))
     }
 
-    /// Returns the store for statistics
-    pub fn statistics_store(&self) -> Result<RawEventStore<Statistics>> {
+    /// Returns the store for collector statistics
+    pub fn collector_statistics_store(&self) -> Result<RawEventStore<CollectorStatistics>> {
         let cf = self
             .db
-            .cf_handle("statistics")
-            .context("cannot access statistics column family")?;
+            .cf_handle("collector statistics")
+            .context("cannot access collector statistics column family")?;
+        Ok(RawEventStore::new(&self.db, cf))
+    }
+
+    /// Returns the store for analyzer statistics
+    pub fn analyzer_statistics_store(&self) -> Result<RawEventStore<AnalyzerStatistics>> {
+        let cf = self
+            .db
+            .cf_handle("analyzer statistics")
+            .context("cannot access analyzer statistics column family")?;
         Ok(RawEventStore::new(&self.db, cf))
     }
 
@@ -284,6 +295,69 @@ impl Database {
             .cf_handle("sources")
             .context("cannot access sources column family")?;
         Ok(SourceStore { db: &self.db, cf })
+    }
+
+    /// Delete all data in given column family names.
+    pub fn delete_all(&self, cfs: Option<Vec<String>>) -> Result<()> {
+        if let Some(names) = cfs {
+            for name in names.clone() {
+                let str = name.as_str();
+                if !(RAW_DATA_COLUMN_FAMILY_NAMES.contains(&str)
+                    || META_DATA_COLUMN_FAMILY_NAMES.contains(&str))
+                {
+                    bail!("invalid column family name {name}");
+                }
+            }
+
+            for store in names {
+                let cf = self
+                    .db
+                    .cf_handle(store.as_str())
+                    .context("cannot access column family {store}")?;
+
+                match self.db.delete_range_cf(cf, KEY_MIN, KEY_MAX) {
+                    Ok(_) => {
+                        info!("{store} db deleted");
+                        self.db.delete_file_in_range_cf(cf, KEY_MIN, KEY_MAX)?;
+                    }
+                    Err(e) => {
+                        error!("delete all error: {e}");
+                    }
+                }
+            }
+        } else {
+            for store in RAW_DATA_COLUMN_FAMILY_NAMES {
+                let cf = self
+                    .db
+                    .cf_handle(store)
+                    .context("cannot access column family")?;
+                match self.db.delete_range_cf(cf, KEY_MIN, KEY_MAX) {
+                    Ok(_) => {
+                        info!("{store} db deleted");
+                        self.db.delete_file_in_range_cf(cf, KEY_MIN, KEY_MAX)?;
+                    }
+                    Err(e) => {
+                        error!("delete all error: {e}");
+                    }
+                }
+            }
+            for store in META_DATA_COLUMN_FAMILY_NAMES {
+                let cf = self
+                    .db
+                    .cf_handle(store)
+                    .context("cannot access column family")?;
+                match self.db.delete_range_cf(cf, KEY_MIN, KEY_MAX) {
+                    Ok(_) => {
+                        info!("{store} db deleted");
+                        self.db.delete_file_in_range_cf(cf, KEY_MIN, KEY_MAX)?;
+                    }
+                    Err(e) => {
+                        error!("delete all error: {e}");
+                    }
+                }
+            }
+        }
+        Ok(())
     }
 }
 
@@ -319,6 +393,15 @@ impl<'db, T> RawEventStore<'db, T> {
     pub fn flush(&self) -> Result<()> {
         self.db.flush_wal(true)?;
         Ok(())
+    }
+
+    pub fn last_item_value(&self) -> Result<Option<Box<[u8]>>> {
+        let mut iter_data = self.db.iterator_cf(self.cf, rocksdb::IteratorMode::End);
+        if let Some(entry) = iter_data.next() {
+            let (_, value) = entry.context("Failed to read database")?;
+            return Ok(Some(value));
+        }
+        Ok(None)
     }
 }
 
@@ -374,9 +457,14 @@ impl<'db> SourceStore<'db> {
 unsafe impl<'db> Send for SourceStore<'db> {}
 
 /// Creates a key corresponding to the given `prefix` and `time`.
-pub fn lower_closed_bound_key(prefix: &[u8], time: Option<DateTime<Utc>>) -> Vec<u8> {
-    let mut bound = Vec::with_capacity(prefix.len() + mem::size_of::<i64>());
-    bound.extend(prefix);
+pub fn lower_closed_bound_key(prefix: Option<&[u8]>, time: Option<DateTime<Utc>>) -> Vec<u8> {
+    let mut bound = if let Some(prefix) = prefix {
+        let mut bound = Vec::with_capacity(prefix.len() + mem::size_of::<i64>());
+        bound.extend(prefix);
+        bound
+    } else {
+        Vec::with_capacity(mem::size_of::<i64>())
+    };
     if let Some(time) = time {
         bound.extend(time.timestamp_nanos().to_be_bytes());
     }
@@ -384,9 +472,14 @@ pub fn lower_closed_bound_key(prefix: &[u8], time: Option<DateTime<Utc>>) -> Vec
 }
 
 /// Creates a key corresponding to the given `prefix` and `time`.
-pub fn upper_closed_bound_key(prefix: &[u8], time: Option<DateTime<Utc>>) -> Vec<u8> {
-    let mut bound = Vec::with_capacity(prefix.len() + mem::size_of::<i64>());
-    bound.extend(prefix);
+pub fn upper_closed_bound_key(prefix: Option<&[u8]>, time: Option<DateTime<Utc>>) -> Vec<u8> {
+    let mut bound = if let Some(prefix) = prefix {
+        let mut bound = Vec::with_capacity(prefix.len() + mem::size_of::<i64>());
+        bound.extend(prefix);
+        bound
+    } else {
+        Vec::with_capacity(mem::size_of::<i64>())
+    };
     if let Some(time) = time {
         bound.extend(time.timestamp_nanos().to_be_bytes());
     } else {
@@ -397,9 +490,14 @@ pub fn upper_closed_bound_key(prefix: &[u8], time: Option<DateTime<Utc>>) -> Vec
 
 /// Creates a key that follows the key calculated from the given `prefix` and
 /// `time`.
-pub fn upper_open_bound_key(prefix: &[u8], time: Option<DateTime<Utc>>) -> Vec<u8> {
-    let mut bound = Vec::with_capacity(prefix.len() + mem::size_of::<i64>() + 1);
-    bound.extend(prefix);
+pub fn upper_open_bound_key(prefix: Option<&[u8]>, time: Option<DateTime<Utc>>) -> Vec<u8> {
+    let mut bound = if let Some(prefix) = prefix {
+        let mut bound = Vec::with_capacity(prefix.len() + mem::size_of::<i64>());
+        bound.extend(prefix);
+        bound
+    } else {
+        Vec::with_capacity(mem::size_of::<i64>())
+    };
     if let Some(time) = time {
         let ns = time.timestamp_nanos();
         if let Some(ns) = ns.checked_sub(1) {
@@ -419,11 +517,11 @@ pub type RawValue = (Box<[u8]>, Box<[u8]>);
 
 pub struct FilteredIter<'d, T> {
     inner: BoundaryIter<'d, T>,
-    filter: &'d NetworkFilter,
+    filter: &'d dyn RawEventFilter,
 }
 
 impl<'d, T> FilteredIter<'d, T> {
-    pub fn new(inner: BoundaryIter<'d, T>, filter: &'d NetworkFilter) -> Self {
+    pub fn new(inner: BoundaryIter<'d, T>, filter: &'d dyn RawEventFilter) -> Self {
         Self { inner, filter }
     }
 }

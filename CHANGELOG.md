@@ -5,6 +5,21 @@ file is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and
 this project adheres to [Semantic
 Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- Add `analyzer statistics` column family. generate and save traffic's
+  raw data statistics.
+- Add `request collector statistics`and `request analyzer statistics`
+  to Graphql API.
+- Delete DB by protocol name(column family) to graphQL API
+  (without protocol will remove all data)
+
+### Changed
+
+- Modify `statistics` column family name to `collector statistics`
+
 ## [0.9.0] - 2023-04-03
 
 ### Added
@@ -45,7 +60,7 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 ### Added
 
 - Add export file to GraphQL API. (`csv`, `json` format support)
-- Add `Statistics` column family. Receive and save traffic statistics from Piglet.
+- Add `statistics` column family. Receive and save traffic statistics from Piglet.
 - Save Giganto's `syslog` to a path written to `log_dir` in configuration file.
 - Add `Oplog` (Operation log)
 

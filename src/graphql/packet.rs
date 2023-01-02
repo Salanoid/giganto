@@ -105,8 +105,8 @@ impl PacketQuery {
         let (start, end) = filter.time();
 
         let iter = store.boundary_iter(
-            &lower_closed_bound_key(&key_prefix, start),
-            &upper_open_bound_key(&key_prefix, end),
+            &lower_closed_bound_key(Some(&key_prefix), start),
+            &upper_open_bound_key(Some(&key_prefix), end),
             Direction::Forward,
         );
         let (records, _) = collect_records(iter, 1000, &filter)?;

@@ -42,6 +42,7 @@ log_dir = "/data/logs/apps"                # path to giganto's syslog file
 export_dir = "tests/export"                # path to giganto's export file
 max_open_files = 8000                      # db options max open files,
 max_mb_of_level_base = 512                 # db options max MB of rocksDB Level 1
+statistics_period = "10m"                  # statistics generate period
 ```
 
 By default, giganto reads the config file from the following directories:

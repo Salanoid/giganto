@@ -6,6 +6,9 @@ use crate::publish::send_direct_stream;
 use crate::server::{
     certificate_info, config_server, SERVER_CONNNECTION_DELAY, SERVER_ENDPOINT_DELAY,
 };
+mod statistics;
+
+pub(crate) use self::statistics::{AnalyzerStatistics, CollectorStatistics, RealTimeStatistics};
 use crate::storage::{Database, RawEventStore};
 use anyhow::{anyhow, bail, Context, Result};
 use chrono::{DateTime, Utc};
@@ -21,6 +24,7 @@ use giganto_client::{
 };
 use quinn::{Connection, Endpoint, RecvStream, SendStream, ServerConfig};
 use rustls::{Certificate, PrivateKey};
+use std::time::Duration;
 use std::{
     collections::HashMap,
     net::SocketAddr,
@@ -28,7 +32,6 @@ use std::{
         atomic::{AtomicBool, AtomicI64, AtomicU8, Ordering},
         Arc,
     },
-    time::Duration,
 };
 use tokio::{
     select,
@@ -51,6 +54,7 @@ const SOURCE_INTERVAL: u64 = 60 * 60 * 24;
 const INGEST_VERSION_REQ: &str = ">=0.8.0-reproduce, <=0.9.0";
 
 type SourceInfo = (String, DateTime<Utc>, ConnState, bool);
+type StatisticsSendChannel = (String, Option<String>, RecordType, usize);
 pub type PacketSources = Arc<RwLock<HashMap<String, Connection>>>;
 pub type Sources = Arc<RwLock<HashMap<String, DateTime<Utc>>>>;
 pub type StreamDirectChannel = Arc<RwLock<HashMap<String, UnboundedSender<Vec<u8>>>>>;
@@ -86,6 +90,7 @@ impl Server {
         packet_sources: PacketSources,
         sources: Sources,
         stream_direct_channel: StreamDirectChannel,
+        statistics_period: Duration,
         wait_shutdown: Arc<Notify>,
     ) {
         let endpoint = Endpoint::server(self.server_config, self.server_address).expect("endpoint");
@@ -103,6 +108,16 @@ impl Server {
             rx,
         ));
 
+        let (stats_tx, stats_rx) = channel(100);
+        let (stats_init_tx, stats_init_rx) = channel(30);
+        let statistics_db = db.clone();
+        task::spawn(process_analyzer_statistics(
+            statistics_db,
+            statistics_period,
+            stats_rx,
+            stats_init_rx,
+        ));
+
         let shutdown_signal = Arc::new(AtomicBool::new(false));
 
         loop {
@@ -114,9 +129,11 @@ impl Server {
                     let stream_direct_channel = stream_direct_channel.clone();
                     let shutdown_notify = wait_shutdown.clone();
                     let shutdown_sig = shutdown_signal.clone();
+                    let stats = stats_tx.clone();
+                    let stats_source_tx = stats_init_tx.clone();
                     tokio::spawn(async move {
                         if let Err(e) =
-                            handle_connection(conn, db, packet_sources, sender, stream_direct_channel,shutdown_notify,shutdown_sig).await
+                            handle_connection(conn, db, packet_sources, sender, stream_direct_channel,shutdown_notify,shutdown_sig,stats,stats_source_tx).await
                         {
                             error!("connection failed: {}", e);
                         }
@@ -135,6 +152,7 @@ impl Server {
     }
 }
 
+#[allow(clippy::too_many_arguments, clippy::too_many_lines)]
 async fn handle_connection(
     conn: quinn::Connecting,
     db: Database,
@@ -143,6 +161,8 @@ async fn handle_connection(
     stream_direct_channel: StreamDirectChannel,
     wait_shutdown: Arc<Notify>,
     shutdown_signal: Arc<AtomicBool>,
+    stats_tx: Sender<StatisticsSendChannel>,
+    stats_source_tx: Sender<String>,
 ) -> Result<()> {
     let rep: bool;
     let connection = conn.await?;
@@ -174,6 +194,11 @@ async fn handle_connection(
     {
         error!("Failed to send channel data : {}", error);
     }
+
+    if let Err(error) = stats_source_tx.send(source.clone()).await {
+        error!("Faild to send analyzer statistics source data : {}", error);
+    }
+
     loop {
         select! {
             stream = connection.accept_bi()  => {
@@ -199,8 +224,9 @@ async fn handle_connection(
                 let db = db.clone();
                 let stream_direct_channel = stream_direct_channel.clone();
                 let shutdown_signal = shutdown_signal.clone();
+                let stats = stats_tx.clone();
                 tokio::spawn(async move {
-                    if let Err(e) = handle_request(source, stream, db, stream_direct_channel,shutdown_signal).await {
+                    if let Err(e) = handle_request(source, stream, db, stream_direct_channel,shutdown_signal,stats).await {
                         error!("failed: {}", e);
                     }
                 });
@@ -222,6 +248,7 @@ async fn handle_request(
     db: Database,
     stream_direct_channel: StreamDirectChannel,
     shutdown_signal: Arc<AtomicBool>,
+    stats: Sender<StatisticsSendChannel>,
 ) -> Result<()> {
     let mut buf = [0; 4];
     receive_record_header(&mut recv, &mut buf)
@@ -238,6 +265,7 @@ async fn handle_request(
                 db.conn_store()?,
                 stream_direct_channel,
                 shutdown_signal,
+                Some(stats),
             )
             .await?;
         }
@@ -251,6 +279,7 @@ async fn handle_request(
                 db.dns_store()?,
                 stream_direct_channel,
                 shutdown_signal,
+                Some(stats),
             )
             .await?;
         }
@@ -264,6 +293,7 @@ async fn handle_request(
                 db.log_store()?,
                 stream_direct_channel,
                 shutdown_signal,
+                Some(stats),
             )
             .await?;
         }
@@ -277,6 +307,7 @@ async fn handle_request(
                 db.http_store()?,
                 stream_direct_channel,
                 shutdown_signal,
+                Some(stats),
             )
             .await?;
         }
@@ -290,6 +321,7 @@ async fn handle_request(
                 db.rdp_store()?,
                 stream_direct_channel,
                 shutdown_signal,
+                Some(stats),
             )
             .await?;
         }
@@ -303,6 +335,7 @@ async fn handle_request(
                 db.periodic_time_series_store()?,
                 stream_direct_channel,
                 shutdown_signal,
+                None,
             )
             .await?;
         }
@@ -316,6 +349,7 @@ async fn handle_request(
                 db.smtp_store()?,
                 stream_direct_channel,
                 shutdown_signal,
+                Some(stats),
             )
             .await?;
         }
@@ -329,6 +363,7 @@ async fn handle_request(
                 db.ntlm_store()?,
                 stream_direct_channel,
                 shutdown_signal,
+                Some(stats),
             )
             .await?;
         }
@@ -342,6 +377,7 @@ async fn handle_request(
                 db.kerberos_store()?,
                 stream_direct_channel,
                 shutdown_signal,
+                Some(stats),
             )
             .await?;
         }
@@ -355,6 +391,7 @@ async fn handle_request(
                 db.ssh_store()?,
                 stream_direct_channel,
                 shutdown_signal,
+                Some(stats),
             )
             .await?;
         }
@@ -368,6 +405,7 @@ async fn handle_request(
                 db.dce_rpc_store()?,
                 stream_direct_channel,
                 shutdown_signal,
+                Some(stats),
             )
             .await?;
         }
@@ -378,9 +416,10 @@ async fn handle_request(
                 RecordType::Statistics,
                 None,
                 source,
-                db.statistics_store()?,
+                db.collector_statistics_store()?,
                 stream_direct_channel,
                 shutdown_signal,
+                None,
             )
             .await?;
         }
@@ -394,6 +433,7 @@ async fn handle_request(
                 db.oplog_store()?,
                 stream_direct_channel,
                 shutdown_signal,
+                None,
             )
             .await?;
         }
@@ -407,6 +447,7 @@ async fn handle_request(
                 db.packet_store()?,
                 stream_direct_channel,
                 shutdown_signal,
+                None,
             )
             .await?;
         }
@@ -424,6 +465,7 @@ async fn handle_data<T>(
     store: RawEventStore<'_, T>,
     stream_direct_channel: StreamDirectChannel,
     shutdown_signal: Arc<AtomicBool>,
+    stats: Option<Sender<StatisticsSendChannel>>,
 ) -> Result<()> {
     let sender_rotation = Arc::new(Mutex::new(send));
     let sender_interval = Arc::clone(&sender_rotation);
@@ -469,14 +511,15 @@ async fn handle_data<T>(
                     send_ack_timestamp(&mut (*sender_rotation.lock().await), timestamp).await?;
                     continue;
                 }
+                let mut stats_kind = None;
                 let mut key: Vec<u8> = Vec::new();
                 key.extend_from_slice(source.as_bytes());
                 key.push(0);
                 match record_type {
                     RecordType::Log => {
-                        key.extend_from_slice(
-                            bincode::deserialize::<Log>(&raw_event)?.kind.as_bytes(),
-                        );
+                        let kind = bincode::deserialize::<Log>(&raw_event)?.kind;
+                        stats_kind = Some(kind.clone());
+                        key.extend_from_slice(kind.as_bytes());
                         key.push(0);
                         key.extend_from_slice(&timestamp.to_be_bytes());
                     }
@@ -514,6 +557,16 @@ async fn handle_data<T>(
                         stream_direct_channel.clone(),
                     )
                     .await?;
+                }
+                if let Some(send_stats) = stats.as_ref() {
+                    send_stats
+                        .send((
+                            source.clone(),
+                            stats_kind,
+                            record_type,
+                            key.len() + raw_event.len(),
+                        ))
+                        .await?;
                 }
                 if store.flush().is_ok() {
                     ack_cnt_rotation.fetch_add(1, Ordering::SeqCst);
@@ -587,6 +640,45 @@ async fn check_sources_conn(
                             sources.write().await.remove(&source_key);
                             packet_sources.write().await.remove(&source_key);
                         }
+                    }
+                }
+            }
+        }
+    }
+}
+
+async fn process_analyzer_statistics(
+    db: Database,
+    statistics_period: Duration,
+    mut stats_rx: Receiver<(String, Option<String>, RecordType, usize)>,
+    mut source_rx: Receiver<String>,
+) -> Result<()> {
+    let statistics_store = db
+        .analyzer_statistics_store()
+        .context("Failed to open analyzer statistics store")?;
+    let mut stats = RealTimeStatistics::new(
+        &statistics_store,
+        u16::try_from(statistics_period.as_secs())?,
+    )?;
+    let mut period = time::interval(statistics_period);
+    period.tick().await;
+
+    loop {
+        select! {
+            Some(source) = source_rx.recv() =>{
+                if stats.init_source(source).is_err(){
+                    error!("Failed to init source's statistics hashmap");
+                }
+            },
+            Some((source, kind, record_type, size)) = stats_rx.recv() => {
+                stats.append(source,kind,record_type, size);
+            }
+            _ = period.tick() => {
+                let stats_result = stats.clear()?;
+                if !stats_result.stats.is_empty(){
+                    let timestamp_key = Utc::now().timestamp_nanos().to_be_bytes();
+                    if statistics_store.append(&timestamp_key, &bincode::serialize(&stats_result)?).is_err() {
+                        error!("Failed to append analyzer statistics store");
                     }
                 }
             }

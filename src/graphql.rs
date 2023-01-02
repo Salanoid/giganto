@@ -1,12 +1,13 @@
+mod delete;
 mod export;
 mod log;
 pub mod network;
 mod packet;
 mod source;
+mod statistics;
 pub mod status;
 mod timeseries;
 
-use self::network::NetworkFilter;
 use crate::{
     ingest::{implement::EventFilter, PacketSources},
     storage::{
@@ -21,7 +22,7 @@ use async_graphql::{
 };
 use base64::{engine::general_purpose::STANDARD as base64_engine, Engine};
 use chrono::{DateTime, TimeZone, Utc};
-use giganto_client::ingest::Packet as pk;
+use giganto_client::ingest::{Packet as pk, RecordType};
 use libc::timeval;
 use pcap::{Capture, Linktype, Packet, PacketHeader};
 use serde::{de::DeserializeOwned, Serialize};
@@ -50,6 +51,8 @@ pub struct Query(
     timeseries::TimeSeriesQuery,
     status::GigantoStatusQuery,
     source::SourceQuery,
+    delete::DeleteQuery,
+    statistics::StatisticsQuery,
 );
 
 #[derive(Default, MergedObject)]
@@ -96,6 +99,28 @@ pub fn schema(
         .finish()
 }
 
+pub trait ConverStr {
+    fn convert_to_str(&self) -> &str;
+}
+
+impl ConverStr for RecordType {
+    fn convert_to_str(&self) -> &str {
+        match self {
+            RecordType::Conn => "conn",
+            RecordType::Dns => "dns",
+            RecordType::Rdp => "rdp",
+            RecordType::Http => "http",
+            RecordType::Log => "log",
+            RecordType::Smtp => "smtp",
+            RecordType::Ntlm => "ntlm",
+            RecordType::Kerberos => "kerberos",
+            RecordType::Ssh => "ssh",
+            RecordType::DceRpc => "dce rpc",
+            _ => "",
+        }
+    }
+}
+
 /// The default page size for connections when neither `first` nor `last` is
 /// provided.
 /// Maximum size: 100.
@@ -125,14 +150,14 @@ where
 
         let last = last.unwrap_or(MAXIMUM_PAGE_SIZE).min(MAXIMUM_PAGE_SIZE);
         let cursor = base64_engine.decode(before)?;
-        let time = upper_closed_bound_key(key_prefix, end);
+        let time = upper_closed_bound_key(Some(key_prefix), end);
         if cursor.cmp(&time) == std::cmp::Ordering::Greater {
             return Err("invalid cursor".into());
         }
         let mut iter = store
             .boundary_iter(
                 &cursor,
-                &lower_closed_bound_key(key_prefix, start),
+                &lower_closed_bound_key(Some(key_prefix), start),
                 Direction::Reverse,
             )
             .peekable();
@@ -155,14 +180,14 @@ where
 
         let first = first.unwrap_or(MAXIMUM_PAGE_SIZE).min(MAXIMUM_PAGE_SIZE);
         let cursor = base64_engine.decode(after)?;
-        let time = lower_closed_bound_key(key_prefix, start);
+        let time = lower_closed_bound_key(Some(key_prefix), start);
         if cursor.cmp(&time) == std::cmp::Ordering::Less {
             return Err("invalid cursor".into());
         }
         let mut iter = store
             .boundary_iter(
                 &cursor,
-                &upper_open_bound_key(key_prefix, end),
+                &upper_open_bound_key(Some(key_prefix), end),
                 Direction::Forward,
             )
             .peekable();
@@ -181,8 +206,8 @@ where
 
         let last = last.min(MAXIMUM_PAGE_SIZE);
         let iter = store.boundary_iter(
-            &upper_open_bound_key(key_prefix, end),
-            &lower_closed_bound_key(key_prefix, start),
+            &upper_open_bound_key(Some(key_prefix), end),
+            &lower_closed_bound_key(Some(key_prefix), start),
             Direction::Reverse,
         );
         let (mut records, has_previous) = collect_records(iter, last, filter)?;
@@ -193,8 +218,8 @@ where
 
         let first = first.unwrap_or(MAXIMUM_PAGE_SIZE).min(MAXIMUM_PAGE_SIZE);
         let iter = store.boundary_iter(
-            &lower_closed_bound_key(key_prefix, start),
-            &upper_open_bound_key(key_prefix, end),
+            &lower_closed_bound_key(Some(key_prefix), start),
+            &upper_open_bound_key(Some(key_prefix), end),
             Direction::Forward,
         );
         let (records, has_next) = collect_records(iter, first, filter)?;
@@ -274,8 +299,8 @@ fn get_timestamp(key: &[u8]) -> Result<DateTime<Utc>, anyhow::Error> {
 
 fn get_filtered_iter<'c, T>(
     store: &RawEventStore<'c, T>,
-    key_prefix: &[u8],
-    filter: &'c NetworkFilter,
+    key_prefix: Option<&[u8]>,
+    filter: &'c impl RawEventFilter,
     after: &Option<String>,
     before: &Option<String>,
     first: Option<usize>,

@@ -39,7 +39,6 @@ async fn main() -> Result<()> {
     } else {
         Settings::new()?
     };
-
     let cert_pem = fs::read(&settings.cert).with_context(|| {
         format!(
             "failed to read certificate file: {}",
@@ -121,6 +120,7 @@ async fn main() -> Result<()> {
             packet_sources,
             sources,
             stream_direct_channel,
+            settings.statistics_period,
             notify_shutdown.clone(),
         ));
         loop {
