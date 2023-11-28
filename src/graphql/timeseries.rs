@@ -1,7 +1,7 @@
 use super::{get_timestamp_from_key, load_connection, FromKeyValue};
 use crate::{
     graphql::{RawEventFilter, TimeRange},
-    storage::{Database, KeyExtractor},
+    storage::{Database, DbOpenOption, KeyExtractor},
 };
 use async_graphql::{
     connection::{query, Connection},
@@ -84,7 +84,11 @@ impl TimeSeriesQuery {
         first: Option<i32>,
         last: Option<i32>,
     ) -> Result<Connection<String, TimeSeries>> {
-        let db = ctx.data::<Database>()?;
+        let rw_db = ctx.data::<Database>()?;
+        rw_db.flush()?;
+
+        let db_option = ctx.data::<DbOpenOption>()?;
+        let db = Database::open(&db_option.path, &db_option.db_option, true)?;
         let store = db.periodic_time_series_store()?;
 
         query(

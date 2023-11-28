@@ -7,7 +7,9 @@ use super::{
 };
 use crate::{
     ingest::implement::EventFilter,
-    storage::{BoundaryIter, Database, Direction, KeyExtractor, RawEventStore, StorageKey},
+    storage::{
+        BoundaryIter, Database, DbOpenOption, Direction, KeyExtractor, RawEventStore, StorageKey,
+    },
 };
 use anyhow::anyhow;
 use async_graphql::{Context, InputObject, Object, Result};
@@ -1522,7 +1524,11 @@ impl ExportQuery {
             return Err(anyhow!("Invalid export file format").into());
         }
 
-        let db = ctx.data::<Database>()?;
+        let rw_db = ctx.data::<Database>()?;
+        rw_db.flush()?;
+
+        let db_option = ctx.data::<DbOpenOption>()?;
+        let db = Database::open(&db_option.path, &db_option.db_option, true)?;
         let path = ctx.data::<PathBuf>()?;
 
         // set export file path

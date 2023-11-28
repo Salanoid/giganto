@@ -6,7 +6,7 @@ use super::{
 };
 use crate::{
     graphql::{RawEventFilter, TimeRange},
-    storage::{Database, KeyExtractor},
+    storage::{Database, DbOpenOption, KeyExtractor},
 };
 use async_graphql::{
     connection::{query, Connection},
@@ -116,7 +116,11 @@ impl SecurityLogQuery {
         first: Option<i32>,
         last: Option<i32>,
     ) -> Result<Connection<String, SecuLogRawEvent>> {
-        let db = ctx.data::<Database>()?;
+        let rw_db = ctx.data::<Database>()?;
+        rw_db.flush()?;
+
+        let db_option = ctx.data::<DbOpenOption>()?;
+        let db = Database::open(&db_option.path, &db_option.db_option, true)?;
         let store = db.secu_log_store()?;
 
         query(

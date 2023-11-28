@@ -14,7 +14,8 @@ use self::network::{IpRange, NetworkFilter, PortRange, SearchFilter};
 use crate::{
     ingest::implement::EventFilter,
     storage::{
-        Database, Direction, FilteredIter, KeyExtractor, KeyValue, RawEventStore, StorageKey,
+        Database, DbOpenOption, Direction, FilteredIter, KeyExtractor, KeyValue, RawEventStore,
+        StorageKey,
     },
     AckTransmissionCount, PcapSources,
 };
@@ -95,6 +96,7 @@ type ConnArgs<T> = (Vec<(Box<[u8]>, T)>, bool, bool);
 
 pub fn schema(
     database: Database,
+    db_open_option: DbOpenOption,
     pcap_sources: PcapSources,
     export_path: PathBuf,
     config_reload: Arc<Notify>,
@@ -103,6 +105,7 @@ pub fn schema(
 ) -> Schema {
     Schema::build(Query::default(), Mutation::default(), EmptySubscription)
         .data(database)
+        .data(db_open_option)
         .data(pcap_sources)
         .data(export_path)
         .data(config_reload)
@@ -623,12 +626,15 @@ impl TestSchema {
         use tokio::sync::RwLock;
 
         let db_dir = tempfile::tempdir().unwrap();
-        let db = Database::open(db_dir.path(), &DbOptions::default()).unwrap();
+        let db = Database::open(db_dir.path(), &DbOptions::default(), false).unwrap();
         let pcap_sources = new_pcap_sources();
         let export_dir = tempfile::tempdir().unwrap();
         let config_reload = Arc::new(Notify::new());
+        let db_open_options = DbOpenOption::new(db_dir.path().to_path_buf(), DbOptions::default());
+
         let schema = schema(
             db.clone(),
+            db_open_options,
             pcap_sources,
             export_dir.path().to_path_buf(),
             config_reload,

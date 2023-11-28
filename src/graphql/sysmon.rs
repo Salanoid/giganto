@@ -5,7 +5,7 @@ use super::{
     network::{NetworkFilter, SearchFilter},
     Engine, FromKeyValue,
 };
-use crate::storage::{Database, FilteredIter};
+use crate::storage::{Database, DbOpenOption, FilteredIter};
 use async_graphql::{
     connection::{query, Connection, Edge},
     Context, Object, Result, SimpleObject, Union,
@@ -459,7 +459,11 @@ impl SysmonQuery {
         first: Option<i32>,
         last: Option<i32>,
     ) -> Result<Connection<String, ProcessCreateEvent>> {
-        let db = ctx.data::<Database>()?;
+        let rw_db = ctx.data::<Database>()?;
+        rw_db.flush()?;
+
+        let db_option = ctx.data::<DbOpenOption>()?;
+        let db = Database::open(&db_option.path, &db_option.db_option, true)?;
         let store = db.process_create_store()?;
 
         query(
@@ -483,7 +487,11 @@ impl SysmonQuery {
         first: Option<i32>,
         last: Option<i32>,
     ) -> Result<Connection<String, FileCreationTimeChangedEvent>> {
-        let db = ctx.data::<Database>()?;
+        let rw_db = ctx.data::<Database>()?;
+        rw_db.flush()?;
+
+        let db_option = ctx.data::<DbOpenOption>()?;
+        let db = Database::open(&db_option.path, &db_option.db_option, true)?;
         let store = db.file_create_time_store()?;
 
         query(
@@ -507,7 +515,11 @@ impl SysmonQuery {
         first: Option<i32>,
         last: Option<i32>,
     ) -> Result<Connection<String, NetworkConnectionEvent>> {
-        let db = ctx.data::<Database>()?;
+        let rw_db = ctx.data::<Database>()?;
+        rw_db.flush()?;
+
+        let db_option = ctx.data::<DbOpenOption>()?;
+        let db = Database::open(&db_option.path, &db_option.db_option, true)?;
         let store = db.network_connect_store()?;
 
         query(
@@ -531,7 +543,11 @@ impl SysmonQuery {
         first: Option<i32>,
         last: Option<i32>,
     ) -> Result<Connection<String, ProcessTerminatedEvent>> {
-        let db = ctx.data::<Database>()?;
+        let rw_db = ctx.data::<Database>()?;
+        rw_db.flush()?;
+
+        let db_option = ctx.data::<DbOpenOption>()?;
+        let db = Database::open(&db_option.path, &db_option.db_option, true)?;
         let store = db.process_terminate_store()?;
 
         query(
@@ -555,7 +571,11 @@ impl SysmonQuery {
         first: Option<i32>,
         last: Option<i32>,
     ) -> Result<Connection<String, ImageLoadedEvent>> {
-        let db = ctx.data::<Database>()?;
+        let rw_db = ctx.data::<Database>()?;
+        rw_db.flush()?;
+
+        let db_option = ctx.data::<DbOpenOption>()?;
+        let db = Database::open(&db_option.path, &db_option.db_option, true)?;
         let store = db.image_load_store()?;
 
         query(
@@ -579,7 +599,11 @@ impl SysmonQuery {
         first: Option<i32>,
         last: Option<i32>,
     ) -> Result<Connection<String, FileCreateEvent>> {
-        let db = ctx.data::<Database>()?;
+        let rw_db = ctx.data::<Database>()?;
+        rw_db.flush()?;
+
+        let db_option = ctx.data::<DbOpenOption>()?;
+        let db = Database::open(&db_option.path, &db_option.db_option, true)?;
         let store = db.file_create_store()?;
 
         query(
@@ -603,7 +627,11 @@ impl SysmonQuery {
         first: Option<i32>,
         last: Option<i32>,
     ) -> Result<Connection<String, RegistryValueSetEvent>> {
-        let db = ctx.data::<Database>()?;
+        let rw_db = ctx.data::<Database>()?;
+        rw_db.flush()?;
+
+        let db_option = ctx.data::<DbOpenOption>()?;
+        let db = Database::open(&db_option.path, &db_option.db_option, true)?;
         let store = db.registry_value_set_store()?;
 
         query(
@@ -627,7 +655,11 @@ impl SysmonQuery {
         first: Option<i32>,
         last: Option<i32>,
     ) -> Result<Connection<String, RegistryKeyValueRenameEvent>> {
-        let db = ctx.data::<Database>()?;
+        let rw_db = ctx.data::<Database>()?;
+        rw_db.flush()?;
+
+        let db_option = ctx.data::<DbOpenOption>()?;
+        let db = Database::open(&db_option.path, &db_option.db_option, true)?;
         let store = db.registry_key_rename_store()?;
 
         query(
@@ -651,7 +683,11 @@ impl SysmonQuery {
         first: Option<i32>,
         last: Option<i32>,
     ) -> Result<Connection<String, FileCreateStreamHashEvent>> {
-        let db = ctx.data::<Database>()?;
+        let rw_db = ctx.data::<Database>()?;
+        rw_db.flush()?;
+
+        let db_option = ctx.data::<DbOpenOption>()?;
+        let db = Database::open(&db_option.path, &db_option.db_option, true)?;
         let store = db.file_create_stream_hash_store()?;
 
         query(
@@ -675,7 +711,11 @@ impl SysmonQuery {
         first: Option<i32>,
         last: Option<i32>,
     ) -> Result<Connection<String, PipeEventEvent>> {
-        let db = ctx.data::<Database>()?;
+        let rw_db = ctx.data::<Database>()?;
+        rw_db.flush()?;
+
+        let db_option = ctx.data::<DbOpenOption>()?;
+        let db = Database::open(&db_option.path, &db_option.db_option, true)?;
         let store = db.pipe_event_store()?;
 
         query(
@@ -699,7 +739,11 @@ impl SysmonQuery {
         first: Option<i32>,
         last: Option<i32>,
     ) -> Result<Connection<String, DnsEventEvent>> {
-        let db = ctx.data::<Database>()?;
+        let rw_db = ctx.data::<Database>()?;
+        rw_db.flush()?;
+
+        let db_option = ctx.data::<DbOpenOption>()?;
+        let db = Database::open(&db_option.path, &db_option.db_option, true)?;
         let store = db.dns_query_store()?;
 
         query(
@@ -723,7 +767,11 @@ impl SysmonQuery {
         first: Option<i32>,
         last: Option<i32>,
     ) -> Result<Connection<String, FileDeleteEvent>> {
-        let db = ctx.data::<Database>()?;
+        let rw_db = ctx.data::<Database>()?;
+        rw_db.flush()?;
+
+        let db_option = ctx.data::<DbOpenOption>()?;
+        let db = Database::open(&db_option.path, &db_option.db_option, true)?;
         let store = db.file_delete_store()?;
 
         query(
@@ -747,7 +795,11 @@ impl SysmonQuery {
         first: Option<i32>,
         last: Option<i32>,
     ) -> Result<Connection<String, ProcessTamperingEvent>> {
-        let db = ctx.data::<Database>()?;
+        let rw_db = ctx.data::<Database>()?;
+        rw_db.flush()?;
+
+        let db_option = ctx.data::<DbOpenOption>()?;
+        let db = Database::open(&db_option.path, &db_option.db_option, true)?;
         let store = db.process_tamper_store()?;
 
         query(
@@ -771,7 +823,11 @@ impl SysmonQuery {
         first: Option<i32>,
         last: Option<i32>,
     ) -> Result<Connection<String, FileDeleteDetectedEvent>> {
-        let db = ctx.data::<Database>()?;
+        let rw_db = ctx.data::<Database>()?;
+        rw_db.flush()?;
+
+        let db_option = ctx.data::<DbOpenOption>()?;
+        let db = Database::open(&db_option.path, &db_option.db_option, true)?;
         let store = db.file_delete_detected_store()?;
 
         query(
@@ -791,7 +847,11 @@ impl SysmonQuery {
         ctx: &Context<'ctx>,
         filter: SearchFilter,
     ) -> Result<Vec<DateTime<Utc>>> {
-        let db = ctx.data::<Database>()?;
+        let rw_db = ctx.data::<Database>()?;
+        rw_db.flush()?;
+
+        let db_option = ctx.data::<DbOpenOption>()?;
+        let db = Database::open(&db_option.path, &db_option.db_option, true)?;
         let store = db.process_create_store()?;
         let exist_data = store
             .batched_multi_get_from_ts(&filter.source, &filter.timestamps)
@@ -808,7 +868,11 @@ impl SysmonQuery {
         ctx: &Context<'ctx>,
         filter: SearchFilter,
     ) -> Result<Vec<DateTime<Utc>>> {
-        let db = ctx.data::<Database>()?;
+        let rw_db = ctx.data::<Database>()?;
+        rw_db.flush()?;
+
+        let db_option = ctx.data::<DbOpenOption>()?;
+        let db = Database::open(&db_option.path, &db_option.db_option, true)?;
         let store = db.file_create_time_store()?;
         let exist_data = store
             .batched_multi_get_from_ts(&filter.source, &filter.timestamps)
@@ -825,7 +889,11 @@ impl SysmonQuery {
         ctx: &Context<'ctx>,
         filter: SearchFilter,
     ) -> Result<Vec<DateTime<Utc>>> {
-        let db = ctx.data::<Database>()?;
+        let rw_db = ctx.data::<Database>()?;
+        rw_db.flush()?;
+
+        let db_option = ctx.data::<DbOpenOption>()?;
+        let db = Database::open(&db_option.path, &db_option.db_option, true)?;
         let store = db.network_connect_store()?;
         let exist_data = store
             .batched_multi_get_from_ts(&filter.source, &filter.timestamps)
@@ -842,7 +910,11 @@ impl SysmonQuery {
         ctx: &Context<'ctx>,
         filter: SearchFilter,
     ) -> Result<Vec<DateTime<Utc>>> {
-        let db = ctx.data::<Database>()?;
+        let rw_db = ctx.data::<Database>()?;
+        rw_db.flush()?;
+
+        let db_option = ctx.data::<DbOpenOption>()?;
+        let db = Database::open(&db_option.path, &db_option.db_option, true)?;
         let store = db.process_terminate_store()?;
         let exist_data = store
             .batched_multi_get_from_ts(&filter.source, &filter.timestamps)
@@ -859,7 +931,11 @@ impl SysmonQuery {
         ctx: &Context<'ctx>,
         filter: SearchFilter,
     ) -> Result<Vec<DateTime<Utc>>> {
-        let db = ctx.data::<Database>()?;
+        let rw_db = ctx.data::<Database>()?;
+        rw_db.flush()?;
+
+        let db_option = ctx.data::<DbOpenOption>()?;
+        let db = Database::open(&db_option.path, &db_option.db_option, true)?;
         let store = db.image_load_store()?;
         let exist_data = store
             .batched_multi_get_from_ts(&filter.source, &filter.timestamps)
@@ -873,7 +949,11 @@ impl SysmonQuery {
         ctx: &Context<'ctx>,
         filter: SearchFilter,
     ) -> Result<Vec<DateTime<Utc>>> {
-        let db = ctx.data::<Database>()?;
+        let rw_db = ctx.data::<Database>()?;
+        rw_db.flush()?;
+
+        let db_option = ctx.data::<DbOpenOption>()?;
+        let db = Database::open(&db_option.path, &db_option.db_option, true)?;
         let store = db.file_create_store()?;
         let exist_data = store
             .batched_multi_get_from_ts(&filter.source, &filter.timestamps)
@@ -887,7 +967,11 @@ impl SysmonQuery {
         ctx: &Context<'ctx>,
         filter: SearchFilter,
     ) -> Result<Vec<DateTime<Utc>>> {
-        let db = ctx.data::<Database>()?;
+        let rw_db = ctx.data::<Database>()?;
+        rw_db.flush()?;
+
+        let db_option = ctx.data::<DbOpenOption>()?;
+        let db = Database::open(&db_option.path, &db_option.db_option, true)?;
         let store = db.registry_value_set_store()?;
         let exist_data = store
             .batched_multi_get_from_ts(&filter.source, &filter.timestamps)
@@ -904,7 +988,11 @@ impl SysmonQuery {
         ctx: &Context<'ctx>,
         filter: SearchFilter,
     ) -> Result<Vec<DateTime<Utc>>> {
-        let db = ctx.data::<Database>()?;
+        let rw_db = ctx.data::<Database>()?;
+        rw_db.flush()?;
+
+        let db_option = ctx.data::<DbOpenOption>()?;
+        let db = Database::open(&db_option.path, &db_option.db_option, true)?;
         let store = db.registry_key_rename_store()?;
         let exist_data = store
             .batched_multi_get_from_ts(&filter.source, &filter.timestamps)
@@ -921,7 +1009,11 @@ impl SysmonQuery {
         ctx: &Context<'ctx>,
         filter: SearchFilter,
     ) -> Result<Vec<DateTime<Utc>>> {
-        let db = ctx.data::<Database>()?;
+        let rw_db = ctx.data::<Database>()?;
+        rw_db.flush()?;
+
+        let db_option = ctx.data::<DbOpenOption>()?;
+        let db = Database::open(&db_option.path, &db_option.db_option, true)?;
         let store = db.file_create_stream_hash_store()?;
         let exist_data = store
             .batched_multi_get_from_ts(&filter.source, &filter.timestamps)
@@ -938,7 +1030,11 @@ impl SysmonQuery {
         ctx: &Context<'ctx>,
         filter: SearchFilter,
     ) -> Result<Vec<DateTime<Utc>>> {
-        let db = ctx.data::<Database>()?;
+        let rw_db = ctx.data::<Database>()?;
+        rw_db.flush()?;
+
+        let db_option = ctx.data::<DbOpenOption>()?;
+        let db = Database::open(&db_option.path, &db_option.db_option, true)?;
         let store = db.pipe_event_store()?;
         let exist_data = store
             .batched_multi_get_from_ts(&filter.source, &filter.timestamps)
@@ -952,7 +1048,11 @@ impl SysmonQuery {
         ctx: &Context<'ctx>,
         filter: SearchFilter,
     ) -> Result<Vec<DateTime<Utc>>> {
-        let db = ctx.data::<Database>()?;
+        let rw_db = ctx.data::<Database>()?;
+        rw_db.flush()?;
+
+        let db_option = ctx.data::<DbOpenOption>()?;
+        let db = Database::open(&db_option.path, &db_option.db_option, true)?;
         let store = db.dns_query_store()?;
         let exist_data = store
             .batched_multi_get_from_ts(&filter.source, &filter.timestamps)
@@ -966,7 +1066,11 @@ impl SysmonQuery {
         ctx: &Context<'ctx>,
         filter: SearchFilter,
     ) -> Result<Vec<DateTime<Utc>>> {
-        let db = ctx.data::<Database>()?;
+        let rw_db = ctx.data::<Database>()?;
+        rw_db.flush()?;
+
+        let db_option = ctx.data::<DbOpenOption>()?;
+        let db = Database::open(&db_option.path, &db_option.db_option, true)?;
         let store = db.file_delete_store()?;
         let exist_data = store
             .batched_multi_get_from_ts(&filter.source, &filter.timestamps)
@@ -980,7 +1084,11 @@ impl SysmonQuery {
         ctx: &Context<'ctx>,
         filter: SearchFilter,
     ) -> Result<Vec<DateTime<Utc>>> {
-        let db = ctx.data::<Database>()?;
+        let rw_db = ctx.data::<Database>()?;
+        rw_db.flush()?;
+
+        let db_option = ctx.data::<DbOpenOption>()?;
+        let db = Database::open(&db_option.path, &db_option.db_option, true)?;
         let store = db.process_tamper_store()?;
         let exist_data = store
             .batched_multi_get_from_ts(&filter.source, &filter.timestamps)
@@ -997,7 +1105,11 @@ impl SysmonQuery {
         ctx: &Context<'ctx>,
         filter: SearchFilter,
     ) -> Result<Vec<DateTime<Utc>>> {
-        let db = ctx.data::<Database>()?;
+        let rw_db = ctx.data::<Database>()?;
+        rw_db.flush()?;
+
+        let db_option = ctx.data::<DbOpenOption>()?;
+        let db = Database::open(&db_option.path, &db_option.db_option, true)?;
         let store = db.file_delete_detected_store()?;
         let exist_data = store
             .batched_multi_get_from_ts(&filter.source, &filter.timestamps)
@@ -1019,7 +1131,11 @@ impl SysmonQuery {
         first: Option<i32>,
         last: Option<i32>,
     ) -> Result<Connection<String, SysmonEvents>> {
-        let db = ctx.data::<Database>()?;
+        let rw_db = ctx.data::<Database>()?;
+        rw_db.flush()?;
+
+        let db_option = ctx.data::<DbOpenOption>()?;
+        let db = Database::open(&db_option.path, &db_option.db_option, true)?;
         query(
             after,
             before,

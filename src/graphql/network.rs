@@ -5,7 +5,7 @@ use super::{
 };
 use crate::{
     graphql::{RawEventFilter, TimeRange},
-    storage::{Database, FilteredIter, KeyExtractor},
+    storage::{Database, DbOpenOption, FilteredIter, KeyExtractor},
 };
 use async_graphql::{
     connection::{query, Connection, Edge},
@@ -685,7 +685,11 @@ impl NetworkQuery {
         first: Option<i32>,
         last: Option<i32>,
     ) -> Result<Connection<String, ConnRawEvent>> {
-        let db = ctx.data::<Database>()?;
+        let rw_db = ctx.data::<Database>()?;
+        rw_db.flush()?;
+
+        let db_option = ctx.data::<DbOpenOption>()?;
+        let db = Database::open(&db_option.path, &db_option.db_option, true)?;
         let store = db.conn_store()?;
 
         query(
@@ -709,7 +713,11 @@ impl NetworkQuery {
         first: Option<i32>,
         last: Option<i32>,
     ) -> Result<Connection<String, DnsRawEvent>> {
-        let db = ctx.data::<Database>()?;
+        let rw_db = ctx.data::<Database>()?;
+        rw_db.flush()?;
+
+        let db_option = ctx.data::<DbOpenOption>()?;
+        let db = Database::open(&db_option.path, &db_option.db_option, true)?;
         let store = db.dns_store()?;
 
         query(
@@ -733,7 +741,11 @@ impl NetworkQuery {
         first: Option<i32>,
         last: Option<i32>,
     ) -> Result<Connection<String, HttpRawEvent>> {
-        let db = ctx.data::<Database>()?;
+        let rw_db = ctx.data::<Database>()?;
+        rw_db.flush()?;
+
+        let db_option = ctx.data::<DbOpenOption>()?;
+        let db = Database::open(&db_option.path, &db_option.db_option, true)?;
         let store = db.http_store()?;
 
         query(
@@ -757,7 +769,11 @@ impl NetworkQuery {
         first: Option<i32>,
         last: Option<i32>,
     ) -> Result<Connection<String, RdpRawEvent>> {
-        let db = ctx.data::<Database>()?;
+        let rw_db = ctx.data::<Database>()?;
+        rw_db.flush()?;
+
+        let db_option = ctx.data::<DbOpenOption>()?;
+        let db = Database::open(&db_option.path, &db_option.db_option, true)?;
         let store = db.rdp_store()?;
 
         query(
@@ -781,7 +797,11 @@ impl NetworkQuery {
         first: Option<i32>,
         last: Option<i32>,
     ) -> Result<Connection<String, SmtpRawEvent>> {
-        let db = ctx.data::<Database>()?;
+        let rw_db = ctx.data::<Database>()?;
+        rw_db.flush()?;
+
+        let db_option = ctx.data::<DbOpenOption>()?;
+        let db = Database::open(&db_option.path, &db_option.db_option, true)?;
         let store = db.smtp_store()?;
 
         query(
@@ -805,7 +825,11 @@ impl NetworkQuery {
         first: Option<i32>,
         last: Option<i32>,
     ) -> Result<Connection<String, NtlmRawEvent>> {
-        let db = ctx.data::<Database>()?;
+        let rw_db = ctx.data::<Database>()?;
+        rw_db.flush()?;
+
+        let db_option = ctx.data::<DbOpenOption>()?;
+        let db = Database::open(&db_option.path, &db_option.db_option, true)?;
         let store = db.ntlm_store()?;
 
         query(
@@ -829,7 +853,11 @@ impl NetworkQuery {
         first: Option<i32>,
         last: Option<i32>,
     ) -> Result<Connection<String, KerberosRawEvent>> {
-        let db = ctx.data::<Database>()?;
+        let rw_db = ctx.data::<Database>()?;
+        rw_db.flush()?;
+
+        let db_option = ctx.data::<DbOpenOption>()?;
+        let db = Database::open(&db_option.path, &db_option.db_option, true)?;
         let store = db.kerberos_store()?;
 
         query(
@@ -853,7 +881,11 @@ impl NetworkQuery {
         first: Option<i32>,
         last: Option<i32>,
     ) -> Result<Connection<String, SshRawEvent>> {
-        let db = ctx.data::<Database>()?;
+        let rw_db = ctx.data::<Database>()?;
+        rw_db.flush()?;
+
+        let db_option = ctx.data::<DbOpenOption>()?;
+        let db = Database::open(&db_option.path, &db_option.db_option, true)?;
         let store = db.ssh_store()?;
 
         query(
@@ -877,7 +909,11 @@ impl NetworkQuery {
         first: Option<i32>,
         last: Option<i32>,
     ) -> Result<Connection<String, DceRpcRawEvent>> {
-        let db = ctx.data::<Database>()?;
+        let rw_db = ctx.data::<Database>()?;
+        rw_db.flush()?;
+
+        let db_option = ctx.data::<DbOpenOption>()?;
+        let db = Database::open(&db_option.path, &db_option.db_option, true)?;
         let store = db.dce_rpc_store()?;
 
         query(
@@ -901,7 +937,11 @@ impl NetworkQuery {
         first: Option<i32>,
         last: Option<i32>,
     ) -> Result<Connection<String, FtpRawEvent>> {
-        let db = ctx.data::<Database>()?;
+        let rw_db = ctx.data::<Database>()?;
+        rw_db.flush()?;
+
+        let db_option = ctx.data::<DbOpenOption>()?;
+        let db = Database::open(&db_option.path, &db_option.db_option, true)?;
         let store = db.ftp_store()?;
 
         query(
@@ -925,7 +965,11 @@ impl NetworkQuery {
         first: Option<i32>,
         last: Option<i32>,
     ) -> Result<Connection<String, MqttRawEvent>> {
-        let db = ctx.data::<Database>()?;
+        let rw_db = ctx.data::<Database>()?;
+        rw_db.flush()?;
+
+        let db_option = ctx.data::<DbOpenOption>()?;
+        let db = Database::open(&db_option.path, &db_option.db_option, true)?;
         let store = db.mqtt_store()?;
 
         query(
@@ -949,7 +993,11 @@ impl NetworkQuery {
         first: Option<i32>,
         last: Option<i32>,
     ) -> Result<Connection<String, LdapRawEvent>> {
-        let db = ctx.data::<Database>()?;
+        let rw_db = ctx.data::<Database>()?;
+        rw_db.flush()?;
+
+        let db_option = ctx.data::<DbOpenOption>()?;
+        let db = Database::open(&db_option.path, &db_option.db_option, true)?;
         let store = db.ldap_store()?;
 
         query(
@@ -973,7 +1021,11 @@ impl NetworkQuery {
         first: Option<i32>,
         last: Option<i32>,
     ) -> Result<Connection<String, TlsRawEvent>> {
-        let db = ctx.data::<Database>()?;
+        let rw_db = ctx.data::<Database>()?;
+        rw_db.flush()?;
+
+        let db_option = ctx.data::<DbOpenOption>()?;
+        let db = Database::open(&db_option.path, &db_option.db_option, true)?;
         let store = db.tls_store()?;
 
         query(
@@ -997,7 +1049,11 @@ impl NetworkQuery {
         first: Option<i32>,
         last: Option<i32>,
     ) -> Result<Connection<String, SmbRawEvent>> {
-        let db = ctx.data::<Database>()?;
+        let rw_db = ctx.data::<Database>()?;
+        rw_db.flush()?;
+
+        let db_option = ctx.data::<DbOpenOption>()?;
+        let db = Database::open(&db_option.path, &db_option.db_option, true)?;
         let store = db.smb_store()?;
 
         query(
@@ -1021,7 +1077,11 @@ impl NetworkQuery {
         first: Option<i32>,
         last: Option<i32>,
     ) -> Result<Connection<String, NfsRawEvent>> {
-        let db = ctx.data::<Database>()?;
+        let rw_db = ctx.data::<Database>()?;
+        rw_db.flush()?;
+
+        let db_option = ctx.data::<DbOpenOption>()?;
+        let db = Database::open(&db_option.path, &db_option.db_option, true)?;
         let store = db.nfs_store()?;
 
         query(
@@ -1045,7 +1105,11 @@ impl NetworkQuery {
         first: Option<i32>,
         last: Option<i32>,
     ) -> Result<Connection<String, NetworkRawEvents>> {
-        let db = ctx.data::<Database>()?;
+        let rw_db = ctx.data::<Database>()?;
+        rw_db.flush()?;
+
+        let db_option = ctx.data::<DbOpenOption>()?;
+        let db = Database::open(&db_option.path, &db_option.db_option, true)?;
         query(
             after,
             before,
@@ -1133,7 +1197,11 @@ impl NetworkQuery {
         ctx: &Context<'ctx>,
         filter: SearchFilter,
     ) -> Result<Vec<DateTime<Utc>>> {
-        let db = ctx.data::<Database>()?;
+        let rw_db = ctx.data::<Database>()?;
+        rw_db.flush()?;
+
+        let db_option = ctx.data::<DbOpenOption>()?;
+        let db = Database::open(&db_option.path, &db_option.db_option, true)?;
         let store = db.conn_store()?;
         let exist_data = store
             .batched_multi_get_from_ts(&filter.source, &filter.timestamps)
@@ -1147,7 +1215,11 @@ impl NetworkQuery {
         ctx: &Context<'ctx>,
         filter: SearchFilter,
     ) -> Result<Vec<DateTime<Utc>>> {
-        let db = ctx.data::<Database>()?;
+        let rw_db = ctx.data::<Database>()?;
+        rw_db.flush()?;
+
+        let db_option = ctx.data::<DbOpenOption>()?;
+        let db = Database::open(&db_option.path, &db_option.db_option, true)?;
         let store = db.dns_store()?;
         let exist_data = store
             .batched_multi_get_from_ts(&filter.source, &filter.timestamps)
@@ -1161,7 +1233,11 @@ impl NetworkQuery {
         ctx: &Context<'ctx>,
         filter: SearchFilter,
     ) -> Result<Vec<DateTime<Utc>>> {
-        let db = ctx.data::<Database>()?;
+        let rw_db = ctx.data::<Database>()?;
+        rw_db.flush()?;
+
+        let db_option = ctx.data::<DbOpenOption>()?;
+        let db = Database::open(&db_option.path, &db_option.db_option, true)?;
         let store = db.http_store()?;
         let exist_data = store
             .batched_multi_get_from_ts(&filter.source, &filter.timestamps)
@@ -1175,7 +1251,11 @@ impl NetworkQuery {
         ctx: &Context<'ctx>,
         filter: SearchFilter,
     ) -> Result<Vec<DateTime<Utc>>> {
-        let db = ctx.data::<Database>()?;
+        let rw_db = ctx.data::<Database>()?;
+        rw_db.flush()?;
+
+        let db_option = ctx.data::<DbOpenOption>()?;
+        let db = Database::open(&db_option.path, &db_option.db_option, true)?;
         let store = db.rdp_store()?;
         let exist_data = store
             .batched_multi_get_from_ts(&filter.source, &filter.timestamps)
@@ -1189,7 +1269,11 @@ impl NetworkQuery {
         ctx: &Context<'ctx>,
         filter: SearchFilter,
     ) -> Result<Vec<DateTime<Utc>>> {
-        let db = ctx.data::<Database>()?;
+        let rw_db = ctx.data::<Database>()?;
+        rw_db.flush()?;
+
+        let db_option = ctx.data::<DbOpenOption>()?;
+        let db = Database::open(&db_option.path, &db_option.db_option, true)?;
         let store = db.smtp_store()?;
         let exist_data = store
             .batched_multi_get_from_ts(&filter.source, &filter.timestamps)
@@ -1203,7 +1287,11 @@ impl NetworkQuery {
         ctx: &Context<'ctx>,
         filter: SearchFilter,
     ) -> Result<Vec<DateTime<Utc>>> {
-        let db = ctx.data::<Database>()?;
+        let rw_db = ctx.data::<Database>()?;
+        rw_db.flush()?;
+
+        let db_option = ctx.data::<DbOpenOption>()?;
+        let db = Database::open(&db_option.path, &db_option.db_option, true)?;
         let store = db.ntlm_store()?;
         let exist_data = store
             .batched_multi_get_from_ts(&filter.source, &filter.timestamps)
@@ -1217,7 +1305,11 @@ impl NetworkQuery {
         ctx: &Context<'ctx>,
         filter: SearchFilter,
     ) -> Result<Vec<DateTime<Utc>>> {
-        let db = ctx.data::<Database>()?;
+        let rw_db = ctx.data::<Database>()?;
+        rw_db.flush()?;
+
+        let db_option = ctx.data::<DbOpenOption>()?;
+        let db = Database::open(&db_option.path, &db_option.db_option, true)?;
         let store = db.kerberos_store()?;
         let exist_data = store
             .batched_multi_get_from_ts(&filter.source, &filter.timestamps)
@@ -1231,7 +1323,11 @@ impl NetworkQuery {
         ctx: &Context<'ctx>,
         filter: SearchFilter,
     ) -> Result<Vec<DateTime<Utc>>> {
-        let db = ctx.data::<Database>()?;
+        let rw_db = ctx.data::<Database>()?;
+        rw_db.flush()?;
+
+        let db_option = ctx.data::<DbOpenOption>()?;
+        let db = Database::open(&db_option.path, &db_option.db_option, true)?;
         let store = db.ssh_store()?;
         let exist_data = store
             .batched_multi_get_from_ts(&filter.source, &filter.timestamps)
@@ -1245,7 +1341,11 @@ impl NetworkQuery {
         ctx: &Context<'ctx>,
         filter: SearchFilter,
     ) -> Result<Vec<DateTime<Utc>>> {
-        let db = ctx.data::<Database>()?;
+        let rw_db = ctx.data::<Database>()?;
+        rw_db.flush()?;
+
+        let db_option = ctx.data::<DbOpenOption>()?;
+        let db = Database::open(&db_option.path, &db_option.db_option, true)?;
         let store = db.dce_rpc_store()?;
         let exist_data = store
             .batched_multi_get_from_ts(&filter.source, &filter.timestamps)
@@ -1259,7 +1359,11 @@ impl NetworkQuery {
         ctx: &Context<'ctx>,
         filter: SearchFilter,
     ) -> Result<Vec<DateTime<Utc>>> {
-        let db = ctx.data::<Database>()?;
+        let rw_db = ctx.data::<Database>()?;
+        rw_db.flush()?;
+
+        let db_option = ctx.data::<DbOpenOption>()?;
+        let db = Database::open(&db_option.path, &db_option.db_option, true)?;
         let store = db.ftp_store()?;
         let exist_data = store
             .batched_multi_get_from_ts(&filter.source, &filter.timestamps)
@@ -1273,7 +1377,11 @@ impl NetworkQuery {
         ctx: &Context<'ctx>,
         filter: SearchFilter,
     ) -> Result<Vec<DateTime<Utc>>> {
-        let db = ctx.data::<Database>()?;
+        let rw_db = ctx.data::<Database>()?;
+        rw_db.flush()?;
+
+        let db_option = ctx.data::<DbOpenOption>()?;
+        let db = Database::open(&db_option.path, &db_option.db_option, true)?;
         let store = db.mqtt_store()?;
         let exist_data = store
             .batched_multi_get_from_ts(&filter.source, &filter.timestamps)
@@ -1287,7 +1395,11 @@ impl NetworkQuery {
         ctx: &Context<'ctx>,
         filter: SearchFilter,
     ) -> Result<Vec<DateTime<Utc>>> {
-        let db = ctx.data::<Database>()?;
+        let rw_db = ctx.data::<Database>()?;
+        rw_db.flush()?;
+
+        let db_option = ctx.data::<DbOpenOption>()?;
+        let db = Database::open(&db_option.path, &db_option.db_option, true)?;
         let store = db.ldap_store()?;
         let exist_data = store
             .batched_multi_get_from_ts(&filter.source, &filter.timestamps)
@@ -1301,7 +1413,11 @@ impl NetworkQuery {
         ctx: &Context<'ctx>,
         filter: SearchFilter,
     ) -> Result<Vec<DateTime<Utc>>> {
-        let db = ctx.data::<Database>()?;
+        let rw_db = ctx.data::<Database>()?;
+        rw_db.flush()?;
+
+        let db_option = ctx.data::<DbOpenOption>()?;
+        let db = Database::open(&db_option.path, &db_option.db_option, true)?;
         let store = db.tls_store()?;
         let exist_data = store
             .batched_multi_get_from_ts(&filter.source, &filter.timestamps)
@@ -1315,7 +1431,11 @@ impl NetworkQuery {
         ctx: &Context<'ctx>,
         filter: SearchFilter,
     ) -> Result<Vec<DateTime<Utc>>> {
-        let db = ctx.data::<Database>()?;
+        let rw_db = ctx.data::<Database>()?;
+        rw_db.flush()?;
+
+        let db_option = ctx.data::<DbOpenOption>()?;
+        let db = Database::open(&db_option.path, &db_option.db_option, true)?;
         let store = db.smb_store()?;
         let exist_data = store
             .batched_multi_get_from_ts(&filter.source, &filter.timestamps)
@@ -1329,7 +1449,11 @@ impl NetworkQuery {
         ctx: &Context<'ctx>,
         filter: SearchFilter,
     ) -> Result<Vec<DateTime<Utc>>> {
-        let db = ctx.data::<Database>()?;
+        let rw_db = ctx.data::<Database>()?;
+        rw_db.flush()?;
+
+        let db_option = ctx.data::<DbOpenOption>()?;
+        let db = Database::open(&db_option.path, &db_option.db_option, true)?;
         let store = db.nfs_store()?;
         let exist_data = store
             .batched_multi_get_from_ts(&filter.source, &filter.timestamps)

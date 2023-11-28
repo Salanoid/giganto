@@ -89,7 +89,8 @@ async fn main() -> Result<()> {
         info!("{}", to_hms(dur));
         exit(0);
     }
-    let database = storage::Database::open(&db_path, &db_options)?;
+    let database = storage::Database::open(&db_path, &db_options, false)?;
+    let db_open_options = storage::DbOpenOption::new(db_path, db_options);
 
     let mut files: Vec<Vec<u8>> = Vec::new();
     for root in &settings.roots {
@@ -119,6 +120,7 @@ async fn main() -> Result<()> {
 
         let schema = graphql::schema(
             database.clone(),
+            db_open_options.clone(),
             pcap_sources.clone(),
             settings.export_dir.clone(),
             notify_config_reload.clone(),
@@ -169,6 +171,7 @@ async fn main() -> Result<()> {
         );
         task::spawn(publish_server.run(
             database.clone(),
+            db_open_options.clone(),
             pcap_sources.clone(),
             stream_direct_channels.clone(),
             notify_shutdown.clone(),

@@ -9,7 +9,7 @@ use crate::server::{
     certificate_info, config_server, extract_cert_from_conn, SERVER_CONNNECTION_DELAY,
     SERVER_ENDPOINT_DELAY,
 };
-use crate::storage::{Database, Direction, RawEventStore, StorageKey};
+use crate::storage::{Database, DbOpenOption, Direction, RawEventStore, StorageKey};
 use crate::{PcapSources, StreamDirectChannels};
 use anyhow::{anyhow, bail, Context, Result};
 use chrono::{TimeZone, Utc};
@@ -63,6 +63,7 @@ impl Server {
     pub async fn run(
         self,
         db: Database,
+        db_option: DbOpenOption,
         pcap_sources: PcapSources,
         stream_direct_channels: StreamDirectChannels,
         notify_shutdown: Arc<Notify>,
@@ -76,7 +77,8 @@ impl Server {
         loop {
             select! {
                 Some(conn) = endpoint.accept()  => {
-                    let db = db.clone();
+                    let db =db.clone();
+                    let db_option = db_option.clone();
                     let pcap_sources = pcap_sources.clone();
                     let stream_direct_channels = stream_direct_channels.clone();
                     let notify_shutdown = notify_shutdown.clone();
@@ -84,6 +86,7 @@ impl Server {
                         if let Err(e) = handle_connection(
                             conn,
                             db,
+                            db_option,
                             pcap_sources,
                             stream_direct_channels,
                             notify_shutdown
@@ -108,6 +111,7 @@ impl Server {
 async fn handle_connection(
     conn: quinn::Connecting,
     db: Database,
+    db_option: DbOpenOption,
     pcap_sources: PcapSources,
     stream_direct_channels: StreamDirectChannels,
     notify_shutdown: Arc<Notify>,
@@ -129,6 +133,7 @@ async fn handle_connection(
     tokio::spawn(request_stream(
         connection.clone(),
         db.clone(),
+        db_option.clone(),
         send,
         recv,
         source,
@@ -149,10 +154,11 @@ async fn handle_connection(
                     Ok(s) => s,
                 };
 
-                let db = db.clone();
+                let db =db.clone();
+                let db_option = db_option.clone();
                 let pcap_sources = pcap_sources.clone();
                 tokio::spawn(async move {
-                    if let Err(e) = handle_request(stream, db, pcap_sources).await {
+                    if let Err(e) = handle_request(stream, db,db_option, pcap_sources).await {
                         error!("failed: {}", e);
                     }
                 });
@@ -167,9 +173,11 @@ async fn handle_connection(
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 async fn request_stream(
     connection: Connection,
-    stream_db: Database,
+    db: Database,
+    db_option: DbOpenOption,
     mut send: SendStream,
     mut recv: RecvStream,
     conn_source: String,
@@ -179,7 +187,8 @@ async fn request_stream(
     loop {
         match receive_stream_request(&mut recv).await {
             Ok((node_type, record_type, raw_data)) => {
-                let db = stream_db.clone();
+                let db = db.clone();
+                let db_option = db_option.clone();
                 let conn = connection.clone();
                 let source = conn_source.clone();
                 let stream_direct_channels = stream_direct_channels.clone();
@@ -193,6 +202,7 @@ async fn request_stream(
                                     Ok(msg) => {
                                         if let Err(e) = process_stream(
                                             db,
+                                            db_option,
                                             conn,
                                             Some(source),
                                             None,
@@ -216,6 +226,7 @@ async fn request_stream(
                                     Ok(msg) => {
                                         if let Err(e) = process_stream(
                                             db,
+                                            db_option,
                                             conn,
                                             None,
                                             None, //if crusher supports generating time series of logs, It will change to valid values.
@@ -286,7 +297,8 @@ async fn process_pcap_extract(
 
 #[allow(clippy::too_many_arguments, clippy::too_many_lines)]
 async fn process_stream<T>(
-    db: Database,
+    rw_db: Database,
+    db_option: DbOpenOption,
     conn: Connection,
     source: Option<String>,
     kind: Option<String>,
@@ -298,6 +310,8 @@ async fn process_stream<T>(
 where
     T: RequestStreamMessage,
 {
+    rw_db.flush()?;
+    let db = Database::open(&db_option.path, &db_option.db_option, true)?;
     match record_type {
         RequestStreamRecord::Conn => {
             if let Ok(store) = db.conn_store() {
@@ -816,10 +830,13 @@ where
 #[allow(clippy::too_many_lines)]
 async fn handle_request(
     (mut send, mut recv): (SendStream, RecvStream),
-    db: Database,
+    rw_db: Database,
+    db_option: DbOpenOption,
     pcap_sources: PcapSources,
 ) -> Result<()> {
     let (msg_type, msg_buf) = receive_range_data_request(&mut recv).await?;
+    rw_db.flush()?;
+    let db = Database::open(&db_option.path, &db_option.db_option, true)?;
     match msg_type {
         MessageCode::ReqRange => {
             let msg = bincode::deserialize::<RequestRange>(&msg_buf)

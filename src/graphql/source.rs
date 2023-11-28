@@ -1,4 +1,4 @@
-use crate::storage::Database;
+use crate::storage::{Database, DbOpenOption};
 use async_graphql::{Context, Object, Result};
 
 #[derive(Default)]
@@ -8,7 +8,11 @@ pub(super) struct SourceQuery;
 impl SourceQuery {
     #[allow(clippy::unused_async)]
     async fn sources<'ctx>(&self, ctx: &Context<'ctx>) -> Result<Vec<String>> {
-        let db = ctx.data::<Database>()?;
+        let rw_db = ctx.data::<Database>()?;
+        rw_db.flush()?;
+
+        let db_option = ctx.data::<DbOpenOption>()?;
+        let db = Database::open(&db_option.path, &db_option.db_option, true)?;
         let source_store = db.sources_store()?;
         let names = source_store.names();
         let res: Vec<String> = names

@@ -1,7 +1,7 @@
 use super::{base64_engine, get_timestamp_from_key, load_connection, Engine, FromKeyValue};
 use crate::{
     graphql::{RawEventFilter, TimeRange},
-    storage::{Database, KeyExtractor},
+    storage::{Database, DbOpenOption, KeyExtractor},
 };
 use anyhow::anyhow;
 use async_graphql::{
@@ -166,7 +166,11 @@ impl LogQuery {
         if filter.kind.is_none() {
             return Err(anyhow!("log query failed: kind is required").into());
         }
-        let db = ctx.data::<Database>()?;
+        let rw_db = ctx.data::<Database>()?;
+        rw_db.flush()?;
+
+        let db_option = ctx.data::<DbOpenOption>()?;
+        let db = Database::open(&db_option.path, &db_option.db_option, true)?;
         let store = db.log_store()?;
 
         query(
@@ -190,7 +194,11 @@ impl LogQuery {
         first: Option<i32>,
         last: Option<i32>,
     ) -> Result<Connection<String, OpLogRawEvent>> {
-        let db = ctx.data::<Database>()?;
+        let rw_db = ctx.data::<Database>()?;
+        rw_db.flush()?;
+
+        let db_option = ctx.data::<DbOpenOption>()?;
+        let db = Database::open(&db_option.path, &db_option.db_option, true)?;
         let store = db.op_log_store()?;
 
         query(

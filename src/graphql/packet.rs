@@ -2,7 +2,7 @@ use super::{
     collect_records, get_timestamp_from_key, load_connection, write_run_tcpdump, Direction,
     FromKeyValue, RawEventFilter, TimeRange, TIMESTAMP_SIZE,
 };
-use crate::storage::{Database, KeyExtractor, StorageKey};
+use crate::storage::{Database, DbOpenOption, KeyExtractor, StorageKey};
 use async_graphql::{
     connection::{query, Connection},
     Context, InputObject, Object, Result, SimpleObject,
@@ -96,7 +96,11 @@ impl PacketQuery {
         first: Option<i32>,
         last: Option<i32>,
     ) -> Result<Connection<String, Packet>> {
-        let db = ctx.data::<Database>()?;
+        let rw_db = ctx.data::<Database>()?;
+        rw_db.flush()?;
+
+        let db_option = ctx.data::<DbOpenOption>()?;
+        let db = Database::open(&db_option.path, &db_option.db_option, true)?;
         let store = db.packet_store()?;
 
         query(
@@ -113,7 +117,11 @@ impl PacketQuery {
 
     #[allow(clippy::unused_async)]
     async fn pcap<'ctx>(&self, ctx: &Context<'ctx>, filter: PacketFilter) -> Result<Pcap> {
-        let db = ctx.data::<Database>()?;
+        let rw_db = ctx.data::<Database>()?;
+        rw_db.flush()?;
+
+        let db_option = ctx.data::<DbOpenOption>()?;
+        let db = Database::open(&db_option.path, &db_option.db_option, true)?;
         let store = db.packet_store()?;
 
         // generate storage search key

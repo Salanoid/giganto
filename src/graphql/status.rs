@@ -1,5 +1,5 @@
 #[cfg(debug_assertions)]
-use crate::storage::Database;
+use crate::storage::{Database, DbOpenOption};
 use crate::AckTransmissionCount;
 use anyhow::{anyhow, Context as ct};
 use async_graphql::Context;
@@ -123,7 +123,11 @@ impl GigantoStatusQuery {
         filter: PropertyFilter,
     ) -> Result<Properties> {
         let cfname = filter.record_type;
-        let db = ctx.data::<Database>()?;
+        let rw_db = ctx.data::<Database>()?;
+        rw_db.flush()?;
+
+        let db_option = ctx.data::<DbOpenOption>()?;
+        let db = Database::open(&db_option.path, &db_option.db_option, true)?;
 
         let props = db.properties_cf(&cfname)?;
 

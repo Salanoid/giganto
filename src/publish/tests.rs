@@ -1,7 +1,7 @@
 use super::Server;
 use crate::{
     new_pcap_sources, new_stream_direct_channels,
-    storage::{Database, DbOptions, RawEventStore},
+    storage::{Database, DbOpenOption, DbOptions, RawEventStore},
     to_cert_chain, to_private_key,
 };
 use base64::{engine::general_purpose::STANDARD as base64_engine, Engine};
@@ -682,11 +682,13 @@ async fn request_range_data_with_protocol() {
 
     let _lock = get_token().lock().await;
     let db_dir = tempfile::tempdir().unwrap();
-    let db = Database::open(db_dir.path(), &DbOptions::default()).unwrap();
+    let db = Database::open(db_dir.path(), &DbOptions::default(), false).unwrap();
     let pcap_sources = new_pcap_sources();
     let stream_direct_channels = new_stream_direct_channels();
+    let db_open_options = DbOpenOption::new(db_dir.path().to_path_buf(), DbOptions::default());
     tokio::spawn(server().run(
         db.clone(),
+        db_open_options,
         pcap_sources,
         stream_direct_channels,
         Arc::new(Notify::new()),
@@ -1656,11 +1658,14 @@ async fn request_range_data_with_log() {
 
     let _lock = get_token().lock().await;
     let db_dir = tempfile::tempdir().unwrap();
-    let db = Database::open(db_dir.path(), &DbOptions::default()).unwrap();
+    let db = Database::open(db_dir.path(), &DbOptions::default(), false).unwrap();
     let pcap_sources = new_pcap_sources();
     let stream_direct_channels = new_stream_direct_channels();
+    let db_open_options = DbOpenOption::new(db_dir.path().to_path_buf(), DbOptions::default());
+
     tokio::spawn(server().run(
         db.clone(),
+        db_open_options,
         pcap_sources,
         stream_direct_channels,
         Arc::new(Notify::new()),
@@ -1738,11 +1743,14 @@ async fn request_range_data_with_period_time_series() {
 
     let _lock = get_token().lock().await;
     let db_dir = tempfile::tempdir().unwrap();
-    let db = Database::open(db_dir.path(), &DbOptions::default()).unwrap();
+    let db = Database::open(db_dir.path(), &DbOptions::default(), false).unwrap();
     let pcap_sources = new_pcap_sources();
     let stream_direct_channels = new_stream_direct_channels();
+    let db_open_options = DbOpenOption::new(db_dir.path().to_path_buf(), DbOptions::default());
+
     tokio::spawn(server().run(
         db.clone(),
+        db_open_options,
         pcap_sources,
         stream_direct_channels,
         Arc::new(Notify::new()),
@@ -1844,7 +1852,7 @@ async fn request_network_event_stream() {
 
     let _lock = get_token().lock().await;
     let db_dir = tempfile::tempdir().unwrap();
-    let db = Database::open(db_dir.path(), &DbOptions::default()).unwrap();
+    let db = Database::open(db_dir.path(), &DbOptions::default(), false).unwrap();
 
     let hog_msg = RequestHogStream {
         start: 0,
@@ -1862,8 +1870,11 @@ async fn request_network_event_stream() {
     };
     let pcap_sources = new_pcap_sources();
     let stream_direct_channels = new_stream_direct_channels();
+    let db_open_options = DbOpenOption::new(db_dir.path().to_path_buf(), DbOptions::default());
+
     tokio::spawn(server().run(
         db.clone(),
+        db_open_options,
         pcap_sources,
         stream_direct_channels.clone(),
         Arc::new(Notify::new()),
@@ -3505,11 +3516,14 @@ async fn request_raw_events() {
 
     let _lock = get_token().lock().await;
     let db_dir = tempfile::tempdir().unwrap();
-    let db = Database::open(db_dir.path(), &DbOptions::default()).unwrap();
+    let db = Database::open(db_dir.path(), &DbOptions::default(), false).unwrap();
     let pcap_sources = new_pcap_sources();
     let stream_direct_channels = new_stream_direct_channels();
+    let db_open_options = DbOpenOption::new(db_dir.path().to_path_buf(), DbOptions::default());
+
     tokio::spawn(server().run(
         db.clone(),
+        db_open_options,
         pcap_sources,
         stream_direct_channels,
         Arc::new(Notify::new()),

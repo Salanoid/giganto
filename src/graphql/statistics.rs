@@ -3,7 +3,7 @@
 use super::TIMESTAMP_SIZE;
 use crate::{
     graphql::TimeRange,
-    storage::{Database, RawEventStore, StatisticsIter, StorageKey},
+    storage::{Database, DbOpenOption, RawEventStore, StatisticsIter, StorageKey},
 };
 use anyhow::anyhow;
 use async_graphql::{Context, Object, Result, SimpleObject};
@@ -72,7 +72,11 @@ impl StatisticsQuery {
         sources: Vec<String>,
         protocols: Option<Vec<String>>,
     ) -> Result<Vec<StatisticsRawEvent>> {
-        let db = ctx.data::<Database>()?;
+        let rw_db = ctx.data::<Database>()?;
+        rw_db.flush()?;
+
+        let db_option = ctx.data::<DbOpenOption>()?;
+        let db = Database::open(&db_option.path, &db_option.db_option, true)?;
         let mut total_stats: Vec<StatisticsRawEvent> = Vec::new();
         let mut stats_iters: Vec<Peekable<StatisticsIter<'_, Statistics>>> = Vec::new();
 

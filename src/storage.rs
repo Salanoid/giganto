@@ -31,7 +31,13 @@ use rocksdb::{
     ColumnFamily, ColumnFamilyDescriptor, DBIteratorWithThreadMode, Options, ReadOptions, DB,
 };
 use serde::de::DeserializeOwned;
-use std::{marker::PhantomData, ops::Deref, path::Path, sync::Arc, time::Duration};
+use std::{
+    marker::PhantomData,
+    ops::Deref,
+    path::{Path, PathBuf},
+    sync::Arc,
+    time::Duration,
+};
 use tokio::{select, sync::Notify, time};
 use tracing::{error, info};
 
@@ -109,6 +115,7 @@ pub struct CfProperties {
     pub stats: String,
 }
 
+#[derive(Clone)]
 pub struct DbOptions {
     max_open_files: i32,
     max_mb_of_level_base: u64,
@@ -133,13 +140,25 @@ impl DbOptions {
 }
 
 #[derive(Clone)]
+pub struct DbOpenOption {
+    pub path: PathBuf,
+    pub db_option: DbOptions,
+}
+
+impl DbOpenOption {
+    pub fn new(path: PathBuf, db_option: DbOptions) -> Self {
+        DbOpenOption { path, db_option }
+    }
+}
+
+#[derive(Clone)]
 pub struct Database {
     db: Arc<DB>,
 }
 
 impl Database {
     /// Opens the database at the given path.
-    pub fn open(path: &Path, db_options: &DbOptions) -> Result<Database> {
+    pub fn open(path: &Path, db_options: &DbOptions, read_only: bool) -> Result<Database> {
         let (db_opts, cf_opts) = rocksdb_options(db_options);
         let mut cfs_name: Vec<&str> = Vec::with_capacity(
             RAW_DATA_COLUMN_FAMILY_NAMES.len() + META_DATA_COLUMN_FAMILY_NAMES.len(),
@@ -151,7 +170,13 @@ impl Database {
             .into_iter()
             .map(|name| ColumnFamilyDescriptor::new(name, cf_opts.clone()));
 
-        let db = DB::open_cf_descriptors(&db_opts, path, cfs).context("cannot open database")?;
+        let db = if read_only {
+            DB::open_cf_descriptors_read_only(&db_opts, path, cfs, false)
+                .context("cannot open Read only database")?
+        } else {
+            DB::open_cf_descriptors(&db_opts, path, cfs).context("cannot open database")?
+        };
+
         Ok(Database { db: Arc::new(db) })
     }
 
@@ -439,6 +464,11 @@ impl Database {
     pub fn secu_log_store(&self) -> Result<RawEventStore<SecuLog>> {
         let cf = self.get_cf_handle("seculog")?;
         Ok(RawEventStore::new(&self.db, cf))
+    }
+
+    pub fn flush(&self) -> Result<()> {
+        self.db.flush_wal(true)?;
+        Ok(())
     }
 }
 

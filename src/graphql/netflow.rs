@@ -6,7 +6,7 @@ use super::{
 };
 use crate::{
     graphql::{RawEventFilter, TimeRange},
-    storage::{Database, KeyExtractor},
+    storage::{Database, DbOpenOption, KeyExtractor},
 };
 use async_graphql::{
     connection::{query, Connection},
@@ -215,7 +215,11 @@ impl NetflowQuery {
         first: Option<i32>,
         last: Option<i32>,
     ) -> Result<Connection<String, Netflow5RawEvent>> {
-        let db = ctx.data::<Database>()?;
+        let rw_db = ctx.data::<Database>()?;
+        rw_db.flush()?;
+
+        let db_option = ctx.data::<DbOpenOption>()?;
+        let db = Database::open(&db_option.path, &db_option.db_option, true)?;
         let store = db.netflow5_store()?;
 
         filter.kind = Some("netflow5".to_string());
@@ -241,7 +245,11 @@ impl NetflowQuery {
         first: Option<i32>,
         last: Option<i32>,
     ) -> Result<Connection<String, NetflowV9RawEvent>> {
-        let db = ctx.data::<Database>()?;
+        let rw_db = ctx.data::<Database>()?;
+        rw_db.flush()?;
+
+        let db_option = ctx.data::<DbOpenOption>()?;
+        let db = Database::open(&db_option.path, &db_option.db_option, true)?;
         let store = db.netflow9_store()?;
 
         filter.kind = Some("netflow9".to_string());

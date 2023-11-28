@@ -1107,7 +1107,7 @@ async fn one_short_reproduce_channel_close() {
 }
 
 fn run_server(db_dir: TempDir) -> JoinHandle<()> {
-    let db = Database::open(db_dir.path(), &DbOptions::default()).unwrap();
+    let db = Database::open(db_dir.path(), &DbOptions::default(), false).unwrap();
     let pcap_sources = new_pcap_sources();
     let ingest_sources = new_ingest_sources();
     let stream_direct_channels = new_stream_direct_channels();

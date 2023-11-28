@@ -267,7 +267,7 @@ mod tests {
 
         // open temp db & store
         let db_dir = tempfile::tempdir().unwrap();
-        let db = Database::open(db_dir.path(), &DbOptions::default()).unwrap();
+        let db = Database::open(db_dir.path(), &DbOptions::default(), false).unwrap();
         let store = db.http_store().unwrap();
 
         // insert old http raw data
