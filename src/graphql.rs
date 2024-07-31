@@ -11,10 +11,6 @@ pub mod status;
 mod sysmon;
 mod timeseries;
 
-#[cfg(target_os = "macos")]
-use std::os::fd::AsRawFd;
-#[cfg(target_os = "linux")]
-use std::os::unix::io::AsRawFd;
 use std::{
     collections::{BTreeSet, HashSet},
     io::{Read, Seek, SeekFrom, Write},
@@ -39,7 +35,7 @@ use num_traits::AsPrimitive;
 use pcap::{Capture, Linktype, Packet, PacketHeader};
 use serde::Deserialize;
 use serde::{de::DeserializeOwned, Serialize};
-use tempfile::tempfile;
+use tempfile::NamedTempFile;
 use tokio::sync::Notify;
 use tracing::error;
 
@@ -573,10 +569,10 @@ where
 }
 
 fn write_run_tcpdump(packets: &Vec<pk>) -> Result<String, anyhow::Error> {
-    let mut temp_file = tempfile()?;
-    let fd = temp_file.as_raw_fd();
+    let mut temp_file = NamedTempFile::new()?;
+    let file_path = temp_file.path();
     let new_pcap = Capture::dead_with_precision(Linktype::ETHERNET, pcap::Precision::Nano)?;
-    let mut file = unsafe { new_pcap.savefile_raw_fd(fd)? };
+    let mut file = new_pcap.savefile(file_path)?;
 
     for packet in packets {
         let len = u32::try_from(packet.packet.len()).unwrap_or_default();
@@ -1206,13 +1202,13 @@ async fn peer_in_charge_graphql_addr<'ctx>(
                 .read()
                 .await
                 .iter()
-                .find_map(|(peer_address, peer_info)| {
+                .find_map(|(addr_to_peers, peer_info)| {
                     peer_info
                         .ingest_sources
                         .contains(source_filter)
                         .then(|| {
                             SocketAddr::new(
-                                peer_address.parse::<IpAddr>().expect("Peer's IP address must be valid, because it is validated when peer giganto started."),
+                                addr_to_peers.parse::<IpAddr>().expect("Peer's IP address must be valid, because it is validated when peer giganto started."),
                                 peer_info.graphql_port.expect("Peer's graphql port must be valid, because it is validated when peer giganto started."),
                             )
                         })
@@ -1250,15 +1246,15 @@ async fn find_who_are_in_charge(
             .read()
             .await
             .iter()
-            .filter(|&(_peer_address, peer_info)| {
+            .filter(|&(_addr_to_peers, peer_info)| {
                 peer_info
                     .ingest_sources
                     .iter()
                     .any(|ingest_source| sources.contains(&ingest_source.as_str()))
             })
-            .map(|(peer_address, peer_info)| {
+            .map(|(addr_to_peers, peer_info)| {
                 SocketAddr::new(
-                    peer_address
+                    addr_to_peers
                         .parse::<IpAddr>()
                         .expect("Peer's IP address must be valid, because it is validated when peer giganto started."),
                     peer_info
@@ -1333,9 +1329,9 @@ macro_rules! request_all_peers_for_paged_events_fut {
                     .read()
                     .await
                     .iter()
-                    .map(|(peer_address, peer_info)| {
+                    .map(|(addr_to_peers, peer_info)| {
                         std::net::SocketAddr::new(
-                            peer_address.parse::<IpAddr>().expect("Peer's IP address must be valid, because it is validated when peer giganto started."),
+                            addr_to_peers.parse::<IpAddr>().expect("Peer's IP address must be valid, because it is validated when peer giganto started."),
                             peer_info.graphql_port.expect("Peer's graphql port must be valid, because it is validated when peer giganto started."),
                         )
                     }).collect()
